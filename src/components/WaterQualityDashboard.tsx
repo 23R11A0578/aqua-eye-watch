@@ -1,8 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Thermometer, Droplets, Eye, Activity, Monitor, FileInput } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Thermometer, Droplets, Eye, Activity, Monitor, FileInput, MapPin } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import ManualWaterQualityInput from './ManualWaterQualityInput';
 
@@ -12,6 +14,13 @@ interface WaterQualityData {
   temperature: number;
   dissolvedOxygen: number;
   timestamp: string;
+}
+
+interface WaterBody {
+  id: string;
+  name: string;
+  location: string;
+  type: 'lake' | 'river' | 'reservoir' | 'groundwater';
 }
 
 interface ParameterCardProps {
@@ -67,53 +76,92 @@ const ParameterCard: React.FC<ParameterCardProps> = ({ title, value, unit, icon,
 
 const WaterQualityDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'realtime' | 'manual'>('realtime');
-  const [currentData, setCurrentData] = useState<WaterQualityData>({
-    pH: 7.2,
-    turbidity: 1.5,
-    temperature: 22.3,
-    dissolvedOxygen: 8.5,
-    timestamp: new Date().toISOString()
-  });
+  const [selectedWaterBody, setSelectedWaterBody] = useState<string>('hussain-sagar');
+  
+  const waterBodies: WaterBody[] = [
+    { id: 'hussain-sagar', name: 'Hussain Sagar Lake', location: 'Central Hyderabad', type: 'lake' },
+    { id: 'musi-river', name: 'Musi River', location: 'Old City', type: 'river' },
+    { id: 'himayat-sagar', name: 'Himayat Sagar', location: 'Rangareddy', type: 'reservoir' },
+    { id: 'osman-sagar', name: 'Osman Sagar', location: 'Gandipet', type: 'reservoir' },
+    { id: 'durgam-cheruvu', name: 'Durgam Cheruvu', location: 'Hi-Tech City', type: 'lake' },
+    { id: 'groundwater-1', name: 'Groundwater - Jubilee Hills', location: 'Jubilee Hills', type: 'groundwater' }
+  ];
 
-  const [historicalData, setHistoricalData] = useState<WaterQualityData[]>([]);
+  const [currentData, setCurrentData] = useState<Record<string, WaterQualityData>>({});
+  const [historicalData, setHistoricalData] = useState<Record<string, WaterQualityData[]>>({});
   const [manualReadings, setManualReadings] = useState<any[]>([]);
 
-  // Simulate real-time data updates
+  // Generate different baseline values for each water body
+  const getWaterBodyBaseline = (waterBodyId: string) => {
+    const baselines = {
+      'hussain-sagar': { pH: 7.8, turbidity: 2.5, temperature: 24, dissolvedOxygen: 6.5 },
+      'musi-river': { pH: 6.8, turbidity: 4.0, temperature: 26, dissolvedOxygen: 5.5 },
+      'himayat-sagar': { pH: 7.2, turbidity: 1.2, temperature: 22, dissolvedOxygen: 8.0 },
+      'osman-sagar': { pH: 7.1, turbidity: 1.0, temperature: 21, dissolvedOxygen: 8.5 },
+      'durgam-cheruvu': { pH: 7.5, turbidity: 1.8, temperature: 23, dissolvedOxygen: 7.2 },
+      'groundwater-1': { pH: 6.9, turbidity: 0.5, temperature: 25, dissolvedOxygen: 7.8 }
+    };
+    return baselines[waterBodyId] || baselines['hussain-sagar'];
+  };
+
+  // Generate realistic data variations for each water body
+  const generateWaterBodyData = (waterBodyId: string): WaterQualityData => {
+    const baseline = getWaterBodyBaseline(waterBodyId);
+    return {
+      pH: baseline.pH + (Math.random() - 0.5) * 1.0,
+      turbidity: Math.max(0.1, baseline.turbidity + (Math.random() - 0.5) * 1.5),
+      temperature: baseline.temperature + (Math.random() - 0.5) * 3.0,
+      dissolvedOxygen: Math.max(3, baseline.dissolvedOxygen + (Math.random() - 0.5) * 2.0),
+      timestamp: new Date().toISOString()
+    };
+  };
+
+  // Initialize data for all water bodies
+  useEffect(() => {
+    const initData: Record<string, WaterQualityData> = {};
+    const initHistorical: Record<string, WaterQualityData[]> = {};
+
+    waterBodies.forEach(waterBody => {
+      // Current data
+      initData[waterBody.id] = generateWaterBodyData(waterBody.id);
+      
+      // Historical data
+      const historical: WaterQualityData[] = [];
+      for (let i = 0; i < 10; i++) {
+        historical.push({
+          ...generateWaterBodyData(waterBody.id),
+          timestamp: new Date(Date.now() - (10 - i) * 3000).toISOString()
+        });
+      }
+      initHistorical[waterBody.id] = historical;
+    });
+
+    setCurrentData(initData);
+    setHistoricalData(initHistorical);
+  }, []);
+
+  // Real-time updates for all water bodies
   useEffect(() => {
     const interval = setInterval(() => {
-      const newData: WaterQualityData = {
-        pH: 6.5 + Math.random() * 2,
-        turbidity: 0.5 + Math.random() * 3,
-        temperature: 20 + Math.random() * 8,
-        dissolvedOxygen: 6 + Math.random() * 4,
-        timestamp: new Date().toISOString()
-      };
-
-      setCurrentData(newData);
+      setCurrentData(prev => {
+        const updated = { ...prev };
+        waterBodies.forEach(waterBody => {
+          updated[waterBody.id] = generateWaterBodyData(waterBody.id);
+        });
+        return updated;
+      });
       
       setHistoricalData(prev => {
-        const updated = [...prev, newData];
-        // Keep only last 20 data points
-        return updated.slice(-20);
+        const updated = { ...prev };
+        waterBodies.forEach(waterBody => {
+          const newData = generateWaterBodyData(waterBody.id);
+          updated[waterBody.id] = [...(prev[waterBody.id] || []), newData].slice(-20);
+        });
+        return updated;
       });
     }, 3000);
 
     return () => clearInterval(interval);
-  }, []);
-
-  // Initialize with some historical data
-  useEffect(() => {
-    const initialData: WaterQualityData[] = [];
-    for (let i = 0; i < 10; i++) {
-      initialData.push({
-        pH: 6.5 + Math.random() * 2,
-        turbidity: 0.5 + Math.random() * 3,
-        temperature: 20 + Math.random() * 8,
-        dissolvedOxygen: 6 + Math.random() * 4,
-        timestamp: new Date(Date.now() - (10 - i) * 3000).toISOString()
-      });
-    }
-    setHistoricalData(initialData);
   }, []);
 
   const getStatus = (value: number, min: number, max: number, optimal: [number, number]): 'good' | 'warning' | 'danger' => {
@@ -126,7 +174,11 @@ const WaterQualityDashboard: React.FC = () => {
     return new Date(timestamp).toLocaleTimeString();
   };
 
-  const chartData = historicalData.map(data => ({
+  const selectedWaterBodyData = currentData[selectedWaterBody];
+  const selectedHistoricalData = historicalData[selectedWaterBody] || [];
+  const selectedWaterBodyInfo = waterBodies.find(wb => wb.id === selectedWaterBody);
+
+  const chartData = selectedHistoricalData.map(data => ({
     time: formatTime(data.timestamp),
     pH: data.pH,
     turbidity: data.turbidity,
@@ -136,6 +188,16 @@ const WaterQualityDashboard: React.FC = () => {
 
   const handleManualReading = (reading: any) => {
     setManualReadings(prev => [reading, ...prev]);
+  };
+
+  const getWaterBodyTypeColor = (type: string) => {
+    const colors = {
+      lake: 'text-blue-600',
+      river: 'text-green-600',
+      reservoir: 'text-purple-600',
+      groundwater: 'text-orange-600'
+    };
+    return colors[type] || 'text-gray-600';
   };
 
   return (
@@ -170,53 +232,99 @@ const WaterQualityDashboard: React.FC = () => {
         {/* Content based on active tab */}
         {activeTab === 'realtime' ? (
           <>
+            {/* Water Body Selection */}
+            <Card className="animate-fade-in">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="w-5 h-5" />
+                  Select Water Body
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Select value={selectedWaterBody} onValueChange={setSelectedWaterBody}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a water body to monitor" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {waterBodies.map((waterBody) => (
+                      <SelectItem key={waterBody.id} value={waterBody.id}>
+                        <div className="flex items-center justify-between w-full">
+                          <span>{waterBody.name}</span>
+                          <div className="flex items-center gap-2 ml-4">
+                            <span className="text-sm text-gray-500">{waterBody.location}</span>
+                            <Badge variant="outline" className={getWaterBodyTypeColor(waterBody.type)}>
+                              {waterBody.type}
+                            </Badge>
+                          </div>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                {selectedWaterBodyInfo && (
+                  <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                    <h3 className="font-semibold text-lg">{selectedWaterBodyInfo.name}</h3>
+                    <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                      <span>📍 {selectedWaterBodyInfo.location}</span>
+                      <Badge variant="outline" className={getWaterBodyTypeColor(selectedWaterBodyInfo.type)}>
+                        {selectedWaterBodyInfo.type}
+                      </Badge>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <div className="flex items-center justify-center gap-2 text-sm text-gray-500">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              Live monitoring active
+              Live monitoring active - {selectedWaterBodyInfo?.name}
             </div>
 
             {/* Parameter Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <ParameterCard
-                title="pH Level"
-                value={currentData.pH}
-                unit="pH"
-                icon={<Droplets className="w-4 h-4 text-aqua-600" />}
-                status={getStatus(currentData.pH, 6.0, 8.5, [6.5, 7.5])}
-                min={6.0}
-                max={8.5}
-              />
-              
-              <ParameterCard
-                title="Turbidity"
-                value={currentData.turbidity}
-                unit="NTU"
-                icon={<Eye className="w-4 h-4 text-blue-600" />}
-                status={getStatus(currentData.turbidity, 0, 4, [0, 1])}
-                min={0}
-                max={4}
-              />
-              
-              <ParameterCard
-                title="Temperature"
-                value={currentData.temperature}
-                unit="°C"
-                icon={<Thermometer className="w-4 h-4 text-red-500" />}
-                status={getStatus(currentData.temperature, 0, 35, [15, 25])}
-                min={0}
-                max={35}
-              />
-              
-              <ParameterCard
-                title="Dissolved Oxygen"
-                value={currentData.dissolvedOxygen}
-                unit="mg/L"
-                icon={<Activity className="w-4 h-4 text-green-600" />}
-                status={getStatus(currentData.dissolvedOxygen, 5, 15, [7, 12])}
-                min={5}
-                max={15}
-              />
-            </div>
+            {selectedWaterBodyData && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <ParameterCard
+                  title="pH Level"
+                  value={selectedWaterBodyData.pH}
+                  unit="pH"
+                  icon={<Droplets className="w-4 h-4 text-aqua-600" />}
+                  status={getStatus(selectedWaterBodyData.pH, 6.0, 8.5, [6.5, 7.5])}
+                  min={6.0}
+                  max={8.5}
+                />
+                
+                <ParameterCard
+                  title="Turbidity"
+                  value={selectedWaterBodyData.turbidity}
+                  unit="NTU"
+                  icon={<Eye className="w-4 h-4 text-blue-600" />}
+                  status={getStatus(selectedWaterBodyData.turbidity, 0, 4, [0, 1])}
+                  min={0}
+                  max={4}
+                />
+                
+                <ParameterCard
+                  title="Temperature"
+                  value={selectedWaterBodyData.temperature}
+                  unit="°C"
+                  icon={<Thermometer className="w-4 h-4 text-red-500" />}
+                  status={getStatus(selectedWaterBodyData.temperature, 0, 35, [15, 25])}
+                  min={0}
+                  max={35}
+                />
+                
+                <ParameterCard
+                  title="Dissolved Oxygen"
+                  value={selectedWaterBodyData.dissolvedOxygen}
+                  unit="mg/L"
+                  icon={<Activity className="w-4 h-4 text-green-600" />}
+                  status={getStatus(selectedWaterBodyData.dissolvedOxygen, 5, 15, [7, 12])}
+                  min={5}
+                  max={15}
+                />
+              </div>
+            )}
 
             {/* Charts */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -290,20 +398,63 @@ const WaterQualityDashboard: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <span>Last Update:</span>
-                    <span className="font-medium">{formatTime(currentData.timestamp)}</span>
+                    <span className="font-medium">
+                      {selectedWaterBodyData ? formatTime(selectedWaterBodyData.timestamp) : 'N/A'}
+                    </span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <span>Monitoring Status:</span>
                     <span className="font-medium text-green-600">Active</span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span>Data Points:</span>
-                    <span className="font-medium">{historicalData.length}</span>
+                    <span>Water Bodies:</span>
+                    <span className="font-medium">{waterBodies.length}</span>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <span>Update Interval:</span>
                     <span className="font-medium">3 seconds</span>
                   </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* All Water Bodies Overview */}
+            <Card className="animate-fade-in">
+              <CardHeader>
+                <CardTitle className="text-lg">All Water Bodies Overview</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {waterBodies.map((waterBody) => {
+                    const data = currentData[waterBody.id];
+                    if (!data) return null;
+                    
+                    return (
+                      <div 
+                        key={waterBody.id} 
+                        className={`p-4 border rounded-lg cursor-pointer transition-all ${
+                          selectedWaterBody === waterBody.id 
+                            ? 'border-blue-500 bg-blue-50' 
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                        onClick={() => setSelectedWaterBody(waterBody.id)}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-semibold">{waterBody.name}</h4>
+                          <Badge variant="outline" className={getWaterBodyTypeColor(waterBody.type)}>
+                            {waterBody.type}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-3">{waterBody.location}</p>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>pH: <span className="font-medium">{data.pH.toFixed(1)}</span></div>
+                          <div>Temp: <span className="font-medium">{data.temperature.toFixed(1)}°C</span></div>
+                          <div>Turbidity: <span className="font-medium">{data.turbidity.toFixed(1)} NTU</span></div>
+                          <div>DO: <span className="font-medium">{data.dissolvedOxygen.toFixed(1)} mg/L</span></div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </CardContent>
             </Card>
